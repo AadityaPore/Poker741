@@ -31,7 +31,11 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            flex-direction: column;
             margin-top: 20px;
+        }
+        svg {
+            overflow: visible;
         }
     </style>
 </head>
@@ -46,6 +50,9 @@
                     <th>Total Buy-In</th>
                     <th>Total Winnings</th>
                     <th>Net Profit</th>
+                    <th>Average Buy-In</th>
+                    <th>Average Winnings</th>
+                    <th>Average Profit</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -70,10 +77,11 @@
                 const winnings = parseFloat(row["Player Winnings"]) || 0;
                 
                 if (!playerStats[player]) {
-                    playerStats[player] = { buyIn: 0, winnings: 0, games: [] };
+                    playerStats[player] = { buyIn: 0, winnings: 0, games: [], count: 0 };
                 }
                 playerStats[player].buyIn += buyIn;
                 playerStats[player].winnings += winnings;
+                playerStats[player].count += 1;
                 playerStats[player].games.push({ date: row["Game Date"], buyIn, winnings });
             });
             
@@ -82,24 +90,14 @@
             updateChart(playerStats, "Overall");
         }
 
-        function populatePlayerDropdown(playerStats) {
-            const select = document.getElementById("playerSelect");
-            select.innerHTML = "<option value='Overall'>Overall</option>";
-            Object.keys(playerStats).forEach(player => {
-                const option = document.createElement("option");
-                option.value = player;
-                option.textContent = player;
-                select.appendChild(option);
-            });
-            select.addEventListener("change", () => {
-                updateChart(playerStats, select.value);
-            });
-        }
-
         function updateTable(playerStats) {
             const tbody = document.querySelector("#statsTable tbody");
             tbody.innerHTML = "";
             Object.entries(playerStats).forEach(([player, stats]) => {
+                const avgBuyIn = stats.buyIn / stats.count;
+                const avgWinnings = stats.winnings / stats.count;
+                const avgProfit = (stats.winnings - stats.buyIn) / stats.count;
+                
                 const row = document.createElement("tr");
                 row.innerHTML = `
                     <td>${player}</td>
@@ -107,61 +105,14 @@
                     <td>$${stats.winnings.toFixed(2)}</td>
                     <td class="${stats.winnings - stats.buyIn >= 0 ? 'text-success' : 'text-danger'}">
                         $${(stats.winnings - stats.buyIn).toFixed(2)}
+                    </td>
+                    <td>$${avgBuyIn.toFixed(2)}</td>
+                    <td>$${avgWinnings.toFixed(2)}</td>
+                    <td class="${avgProfit >= 0 ? 'text-success' : 'text-danger'}">
+                        $${avgProfit.toFixed(2)}
                     </td>`;
                 tbody.appendChild(row);
             });
-        }
-
-        function updateChart(playerStats, selectedPlayer) {
-            d3.select("#chart").html("");
-            let data;
-            if (selectedPlayer === "Overall") {
-                data = Object.entries(playerStats).map(([player, stats]) => ({
-                    player,
-                    netProfit: stats.winnings - stats.buyIn
-                }));
-            } else {
-                data = playerStats[selectedPlayer].games.map(game => ({
-                    date: game.date,
-                    netProfit: game.winnings - game.buyIn
-                }));
-            }
-            
-            const width = 700, height = 400;
-            const svg = d3.select("#chart").append("svg")
-                .attr("width", width)
-                .attr("height", height);
-            
-            const x = d3.scaleBand()
-                .domain(data.map(d => d.date || d.player))
-                .range([0, width])
-                .padding(0.2);
-
-            const y = d3.scaleLinear()
-                .domain([d3.min(data, d => d.netProfit), d3.max(data, d => d.netProfit)])
-                .nice()
-                .range([height - 20, 20]);
-
-            svg.selectAll("rect")
-                .data(data)
-                .enter()
-                .append("rect")
-                .attr("x", d => x(d.date || d.player))
-                .attr("y", d => y(Math.max(0, d.netProfit)))
-                .attr("width", x.bandwidth())
-                .attr("height", d => Math.abs(y(d.netProfit) - y(0)))
-                .attr("fill", d => d.netProfit >= 0 ? "green" : "red");
-            
-            svg.append("g")
-                .attr("transform", `translate(0, ${height - 20})`)
-                .call(d3.axisBottom(x))
-                .selectAll("text")
-                .attr("transform", "rotate(-45)")
-                .style("text-anchor", "end");
-            
-            svg.append("g")
-                .attr("transform", "translate(40,0)")
-                .call(d3.axisLeft(y));
         }
     </script>
 </body>
