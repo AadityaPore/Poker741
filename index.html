@@ -10,7 +10,7 @@
 <body>
     <div class="container mt-5">
         <h2 class="text-center">Poker Game Statistics</h2>
-        <input type="file" id="csvFile" class="form-control mt-3" accept=".csv">
+        <select id="playerSelect" class="form-select mt-3"></select>
         <table class="table table-striped mt-4" id="statsTable">
             <thead>
                 <tr>
@@ -30,32 +30,45 @@
             .then(response => response.text())
             .then(text => processCSV(text))
             .catch(error => console.error('Error loading CSV:', error));
-        });
 
         function processCSV(data) {
             const rows = d3.csvParse(data);
             let playerStats = {};
-
             rows.forEach(row => {
                 const player = row["Player Name"];
                 const buyIn = parseFloat(row["Player Buy In"]) || 0;
                 const winnings = parseFloat(row["Player Winnings"]) || 0;
                 
                 if (!playerStats[player]) {
-                    playerStats[player] = { buyIn: 0, winnings: 0 };
+                    playerStats[player] = { buyIn: 0, winnings: 0, games: [] };
                 }
                 playerStats[player].buyIn += buyIn;
                 playerStats[player].winnings += winnings;
+                playerStats[player].games.push({ date: row["Game Date"], buyIn, winnings });
             });
-
+            
+            populatePlayerDropdown(playerStats);
             updateTable(playerStats);
-            updateChart(playerStats);
+            updateChart(playerStats, "Overall");
+        }
+
+        function populatePlayerDropdown(playerStats) {
+            const select = document.getElementById("playerSelect");
+            select.innerHTML = "<option value='Overall'>Overall</option>";
+            Object.keys(playerStats).forEach(player => {
+                const option = document.createElement("option");
+                option.value = player;
+                option.textContent = player;
+                select.appendChild(option);
+            });
+            select.addEventListener("change", () => {
+                updateChart(playerStats, select.value);
+            });
         }
 
         function updateTable(playerStats) {
             const tbody = document.querySelector("#statsTable tbody");
             tbody.innerHTML = "";
-            
             Object.entries(playerStats).forEach(([player, stats]) => {
                 const row = document.createElement("tr");
                 row.innerHTML = `
@@ -69,21 +82,28 @@
             });
         }
 
-        function updateChart(playerStats) {
+        function updateChart(playerStats, selectedPlayer) {
             d3.select("#chart").html("");
+            let data;
+            if (selectedPlayer === "Overall") {
+                data = Object.entries(playerStats).map(([player, stats]) => ({
+                    player,
+                    netProfit: stats.winnings - stats.buyIn
+                }));
+            } else {
+                data = playerStats[selectedPlayer].games.map(game => ({
+                    date: game.date,
+                    netProfit: game.winnings - game.buyIn
+                }));
+            }
             
-            const data = Object.entries(playerStats).map(([player, stats]) => ({
-                player,
-                netProfit: stats.winnings - stats.buyIn
-            }));
-
             const width = 600, height = 400;
             const svg = d3.select("#chart").append("svg")
                 .attr("width", width)
                 .attr("height", height);
-
+            
             const x = d3.scaleBand()
-                .domain(data.map(d => d.player))
+                .domain(data.map(d => d.date || d.player))
                 .range([0, width])
                 .padding(0.2);
 
@@ -96,19 +116,19 @@
                 .data(data)
                 .enter()
                 .append("rect")
-                .attr("x", d => x(d.player))
+                .attr("x", d => x(d.date || d.player))
                 .attr("y", d => y(Math.max(0, d.netProfit)))
                 .attr("width", x.bandwidth())
                 .attr("height", d => Math.abs(y(d.netProfit) - y(0)))
                 .attr("fill", d => d.netProfit >= 0 ? "green" : "red");
-
+            
             svg.append("g")
                 .attr("transform", `translate(0, ${height - 20})`)
                 .call(d3.axisBottom(x))
                 .selectAll("text")
                 .attr("transform", "rotate(-45)")
                 .style("text-anchor", "end");
-
+            
             svg.append("g")
                 .attr("transform", "translate(40,0)")
                 .call(d3.axisLeft(y));
