@@ -30,7 +30,7 @@ Game Date,Player Name,Player Buy In,Player Winnings,Game Profit,Percent Return
 1/24/2025,Aadi,90,140.25,50.25,0.558333333
 1/24/2025,Luke,30,54,24,0.8
 1/24/2025,Josh,30,0,-30,-1
-1/24/2025,Sudarshan,0,0,0,#DIV/0!
+1/24/2025,Sudarshan,30,58.25,28.25,0.941666667
 8/18/2024,Nihal,20,13.6,-6.4,-0.32
 8/18/2024,Sudarshan,30,0,-30,-1
 8/18/2024,Brenden,10,66.4,56.4,5.64
@@ -143,10 +143,6 @@ Game Date,Player Name,Player Buy In,Player Winnings,Game Profit,Percent Return
 1/20/2024,Brenden,20,0,-20,-1
 1/20/2024,Nihal,16.5,0,-16.5,-1
 1/20/2024,Luke,20,7.5,-12.5,-0.625
-1/24/2024,Aadi,90,120,30,0.333333333
-1/24/2024,Luke,30,54,24,0.8
-1/24/2024,Sudarshan,30,65,35,1.166666667
-1/24/2024,Josh,30,0,-30,-1
 1/31/2024,Aadi,25,55.9,30.9,1.236
 1/31/2024,Josh,30,34.8,4.8,0.16
 1/31/2024,Jack,15,0,-15,-1
