@@ -12,7 +12,7 @@
             color: white;
         }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: auto;
             padding: 20px;
             background-color: #1e1e1e;
@@ -46,6 +46,8 @@
                     <th>Total Buy-In</th>
                     <th>Total Winnings</th>
                     <th>Net Profit</th>
+                    <th>Game Profit</th>
+                    <th>Percent Return</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -56,7 +58,7 @@
     </div>
 
     <script>
-        fetch('Poker741.csv')
+        fetch('/mnt/data/Poker741 (1).csv')
             .then(response => response.text())
             .then(text => processCSV(text))
             .catch(error => console.error('Error loading CSV:', error));
@@ -68,13 +70,18 @@
                 const player = row["Player Name"];
                 const buyIn = parseFloat(row["Player Buy In"]) || 0;
                 const winnings = parseFloat(row["Player Winnings"]) || 0;
-                
+                const gameProfit = winnings - buyIn;
+                const percentReturn = buyIn > 0 ? (gameProfit / buyIn * 100).toFixed(2) + '%' : 'N/A';
+
                 if (!playerStats[player]) {
-                    playerStats[player] = { buyIn: 0, winnings: 0, games: [] };
+                    playerStats[player] = { buyIn: 0, winnings: 0, netProfit: 0, gameProfit: 0, percentReturn: [], games: [] };
                 }
                 playerStats[player].buyIn += buyIn;
                 playerStats[player].winnings += winnings;
-                playerStats[player].games.push({ date: row["Game Date"], buyIn, winnings });
+                playerStats[player].netProfit += gameProfit;
+                playerStats[player].gameProfit += gameProfit;
+                playerStats[player].percentReturn.push(percentReturn);
+                playerStats[player].games.push({ date: row["Game Date"], buyIn, winnings, gameProfit, percentReturn });
             });
             
             populatePlayerDropdown(playerStats);
@@ -105,9 +112,10 @@
                     <td>${player}</td>
                     <td>$${stats.buyIn.toFixed(2)}</td>
                     <td>$${stats.winnings.toFixed(2)}</td>
-                    <td class="${stats.winnings - stats.buyIn >= 0 ? 'text-success' : 'text-danger'}">
-                        $${(stats.winnings - stats.buyIn).toFixed(2)}
-                    </td>`;
+                    <td class="${stats.netProfit >= 0 ? 'text-success' : 'text-danger'}">$${stats.netProfit.toFixed(2)}</td>
+                    <td>$${stats.gameProfit.toFixed(2)}</td>
+                    <td>${stats.percentReturn.join(', ')}</td>
+                `;
                 tbody.appendChild(row);
             });
         }
@@ -118,12 +126,12 @@
             if (selectedPlayer === "Overall") {
                 data = Object.entries(playerStats).map(([player, stats]) => ({
                     player,
-                    netProfit: stats.winnings - stats.buyIn
+                    netProfit: stats.netProfit
                 }));
             } else {
                 data = playerStats[selectedPlayer].games.map(game => ({
                     date: game.date,
-                    netProfit: game.winnings - game.buyIn
+                    gameProfit: game.gameProfit
                 }));
             }
             
@@ -138,7 +146,7 @@
                 .padding(0.2);
 
             const y = d3.scaleLinear()
-                .domain([d3.min(data, d => d.netProfit), d3.max(data, d => d.netProfit)])
+                .domain([d3.min(data, d => d.gameProfit), d3.max(data, d => d.gameProfit)])
                 .nice()
                 .range([height - 20, 20]);
 
@@ -147,10 +155,10 @@
                 .enter()
                 .append("rect")
                 .attr("x", d => x(d.date || d.player))
-                .attr("y", d => y(Math.max(0, d.netProfit)))
+                .attr("y", d => y(Math.max(0, d.gameProfit)))
                 .attr("width", x.bandwidth())
-                .attr("height", d => Math.abs(y(d.netProfit) - y(0)))
-                .attr("fill", d => d.netProfit >= 0 ? "green" : "red");
+                .attr("height", d => Math.abs(y(d.gameProfit) - y(0)))
+                .attr("fill", d => d.gameProfit >= 0 ? "green" : "red");
             
             svg.append("g")
                 .attr("transform", `translate(0, ${height - 20})`)
