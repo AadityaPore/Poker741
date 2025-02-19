@@ -20,7 +20,7 @@
         <select id="playerSelect" class="form-select mt-3"></select>
         <table class="table table-striped mt-4" id="statsTable">
             <thead>
-                <tr>
+                <tr id="tableHeader">
                     <th>Player Name</th>
                     <th>Total Buy-In</th>
                     <th>Total Winnings</th>
@@ -36,28 +36,28 @@
     </div>
 
     <script>
-        d3.csv("Poker741.csv").then(function(rows) {
-            console.log("Loaded CSV Data:", rows); // Debugging: Check the parsed data
+        let playerStats = {};
 
-            let playerStats = {};
+        d3.csv("Poker741.csv").then(function(rows) {
+            console.log("Loaded CSV Data:", rows); // Debugging: Check parsed data
 
             rows.forEach(row => {
-                // Normalize column names
                 let player = row["Player Name"].trim();
                 let buyIn = parseFloat(row["Player Buy In"]) || 0;
                 let winnings = parseFloat(row["Player Winnings"]) || 0;
+                let gameDate = row["Game Date"];
 
                 if (!playerStats[player]) {
                     playerStats[player] = { buyIn: 0, winnings: 0, games: [] };
                 }
                 playerStats[player].buyIn += buyIn;
                 playerStats[player].winnings += winnings;
-                playerStats[player].games.push({ date: row["Game Date"], buyIn, winnings });
+                playerStats[player].games.push({ date: gameDate, buyIn, winnings });
             });
 
             populatePlayerDropdown(playerStats);
-            updateTable(playerStats);
-            updateChart(playerStats, "Overall");
+            updateTable("Overall");
+            updateChart("Overall");
         }).catch(error => console.error("Error loading CSV:", error));
 
         function populatePlayerDropdown(playerStats) {
@@ -70,33 +70,71 @@
                 select.appendChild(option);
             });
             select.addEventListener("change", () => {
-                updateChart(playerStats, select.value);
+                updateTable(select.value);
+                updateChart(select.value);
             });
         }
 
-        function updateTable(playerStats) {
+        function updateTable(selectedPlayer) {
             const tbody = document.querySelector("#statsTable tbody");
+            const tableHeader = document.getElementById("tableHeader");
             tbody.innerHTML = "";
-            Object.entries(playerStats).forEach(([player, stats]) => {
-                const netProfit = stats.winnings - stats.buyIn;
-                const percentReturn = stats.buyIn > 0 ? (netProfit / stats.buyIn) * 100 : 0;
 
-                const row = document.createElement("tr");
-                row.innerHTML = `
-                    <td>${player}</td>
-                    <td>$${stats.buyIn.toFixed(2)}</td>
-                    <td>$${stats.winnings.toFixed(2)}</td>
-                    <td class="${netProfit >= 0 ? 'text-success' : 'text-danger'}">
-                        $${netProfit.toFixed(2)}
-                    </td>
-                    <td class="${percentReturn >= 0 ? 'text-success' : 'text-danger'}">
-                        ${percentReturn.toFixed(2)}%
-                    </td>`;
-                tbody.appendChild(row);
-            });
+            if (selectedPlayer === "Overall") {
+                tableHeader.innerHTML = `
+                    <th>Player Name</th>
+                    <th>Total Buy-In</th>
+                    <th>Total Winnings</th>
+                    <th>Net Profit</th>
+                    <th>Percent Return</th>`;
+                
+                Object.entries(playerStats).forEach(([player, stats]) => {
+                    const netProfit = stats.winnings - stats.buyIn;
+                    const percentReturn = stats.buyIn > 0 ? (netProfit / stats.buyIn) * 100 : 0;
+
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${player}</td>
+                        <td>$${stats.buyIn.toFixed(2)}</td>
+                        <td>$${stats.winnings.toFixed(2)}</td>
+                        <td class="${netProfit >= 0 ? 'text-success' : 'text-danger'}">
+                            $${netProfit.toFixed(2)}
+                        </td>
+                        <td class="${percentReturn >= 0 ? 'text-success' : 'text-danger'}">
+                            ${percentReturn.toFixed(2)}%
+                        </td>`;
+                    tbody.appendChild(row);
+                });
+
+            } else {
+                tableHeader.innerHTML = `
+                    <th>Game Date</th>
+                    <th>Buy-In</th>
+                    <th>Winnings</th>
+                    <th>Net Profit</th>
+                    <th>Percent Return</th>`;
+
+                playerStats[selectedPlayer].games.forEach(game => {
+                    const netProfit = game.winnings - game.buyIn;
+                    const percentReturn = game.buyIn > 0 ? (netProfit / game.buyIn) * 100 : 0;
+
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${game.date}</td>
+                        <td>$${game.buyIn.toFixed(2)}</td>
+                        <td>$${game.winnings.toFixed(2)}</td>
+                        <td class="${netProfit >= 0 ? 'text-success' : 'text-danger'}">
+                            $${netProfit.toFixed(2)}
+                        </td>
+                        <td class="${percentReturn >= 0 ? 'text-success' : 'text-danger'}">
+                            ${percentReturn.toFixed(2)}%
+                        </td>`;
+                    tbody.appendChild(row);
+                });
+            }
         }
 
-        function updateChart(playerStats, selectedPlayer) {
+        function updateChart(selectedPlayer) {
             d3.select("#chart").html("");
             let data;
             if (selectedPlayer === "Overall") {
@@ -110,7 +148,7 @@
                     netProfit: game.winnings - game.buyIn
                 }));
             }
-            
+
             const width = 700, height = 400;
             const svg = d3.select("#chart").append("svg")
                 .attr("width", width)
