@@ -9,7 +9,8 @@
     <style>
         body { background-color: #121212; color: white; }
         .container { max-width: 800px; margin: auto; padding: 20px; background-color: #1e1e1e; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); }
-        .table { background-color: #252525; color: white; }
+        .table { background-color: #252525; color: white; cursor: pointer; }
+        th { cursor: pointer; }
         select { background-color: #252525; color: white; }
         #chart-container { display: flex; justify-content: center; align-items: center; margin-top: 20px; }
     </style>
@@ -20,13 +21,7 @@
         <select id="playerSelect" class="form-select mt-3"></select>
         <table class="table table-striped mt-4" id="statsTable">
             <thead>
-                <tr id="tableHeader">
-                    <th>Player Name</th>
-                    <th>Total Buy-In</th>
-                    <th>Total Winnings</th>
-                    <th>Net Profit</th>
-                    <th>Percent Return</th>
-                </tr>
+                <tr id="tableHeader"></tr>
             </thead>
             <tbody></tbody>
         </table>
@@ -37,9 +32,10 @@
 
     <script>
         let playerStats = {};
+        let currentSort = { column: null, ascending: true };
 
         d3.csv("Poker741.csv").then(function(rows) {
-            console.log("Loaded CSV Data:", rows); // Debugging: Check parsed data
+            console.log("Loaded CSV Data:", rows); 
 
             rows.forEach(row => {
                 let player = row["Player Name"].trim();
@@ -79,111 +75,85 @@
             const tbody = document.querySelector("#statsTable tbody");
             const tableHeader = document.getElementById("tableHeader");
             tbody.innerHTML = "";
+            tableHeader.innerHTML = "";
 
             if (selectedPlayer === "Overall") {
-                tableHeader.innerHTML = `
-                    <th>Player Name</th>
-                    <th>Total Buy-In</th>
-                    <th>Total Winnings</th>
-                    <th>Net Profit</th>
-                    <th>Percent Return</th>`;
-                
-                Object.entries(playerStats).forEach(([player, stats]) => {
+                const columns = ["Player Name", "Total Buy-In", "Total Winnings", "Net Profit", "Percent Return"];
+                createSortableHeaders(columns, selectedPlayer);
+
+                let data = Object.entries(playerStats).map(([player, stats]) => {
                     const netProfit = stats.winnings - stats.buyIn;
                     const percentReturn = stats.buyIn > 0 ? (netProfit / stats.buyIn) * 100 : 0;
-
-                    const row = document.createElement("tr");
-                    row.innerHTML = `
-                        <td>${player}</td>
-                        <td>$${stats.buyIn.toFixed(2)}</td>
-                        <td>$${stats.winnings.toFixed(2)}</td>
-                        <td class="${netProfit >= 0 ? 'text-success' : 'text-danger'}">
-                            $${netProfit.toFixed(2)}
-                        </td>
-                        <td class="${percentReturn >= 0 ? 'text-success' : 'text-danger'}">
-                            ${percentReturn.toFixed(2)}%
-                        </td>`;
-                    tbody.appendChild(row);
+                    return { player, buyIn: stats.buyIn, winnings: stats.winnings, netProfit, percentReturn };
                 });
 
+                sortAndRenderTable(data, selectedPlayer);
             } else {
-                tableHeader.innerHTML = `
-                    <th>Game Date</th>
-                    <th>Buy-In</th>
-                    <th>Winnings</th>
-                    <th>Net Profit</th>
-                    <th>Percent Return</th>`;
+                const columns = ["Game Date", "Buy-In", "Winnings", "Net Profit", "Percent Return"];
+                createSortableHeaders(columns, selectedPlayer);
 
-                playerStats[selectedPlayer].games.forEach(game => {
+                let data = playerStats[selectedPlayer].games.map(game => {
                     const netProfit = game.winnings - game.buyIn;
                     const percentReturn = game.buyIn > 0 ? (netProfit / game.buyIn) * 100 : 0;
-
-                    const row = document.createElement("tr");
-                    row.innerHTML = `
-                        <td>${game.date}</td>
-                        <td>$${game.buyIn.toFixed(2)}</td>
-                        <td>$${game.winnings.toFixed(2)}</td>
-                        <td class="${netProfit >= 0 ? 'text-success' : 'text-danger'}">
-                            $${netProfit.toFixed(2)}
-                        </td>
-                        <td class="${percentReturn >= 0 ? 'text-success' : 'text-danger'}">
-                            ${percentReturn.toFixed(2)}%
-                        </td>`;
-                    tbody.appendChild(row);
+                    return { date: game.date, buyIn: game.buyIn, winnings: game.winnings, netProfit, percentReturn };
                 });
+
+                sortAndRenderTable(data, selectedPlayer);
             }
         }
 
-        function updateChart(selectedPlayer) {
-            d3.select("#chart").html("");
-            let data;
-            if (selectedPlayer === "Overall") {
-                data = Object.entries(playerStats).map(([player, stats]) => ({
-                    player,
-                    netProfit: stats.winnings - stats.buyIn
-                }));
+        function createSortableHeaders(columns, selectedPlayer) {
+            const tableHeader = document.getElementById("tableHeader");
+            tableHeader.innerHTML = columns.map(col => `<th onclick="sortTable('${col}', '${selectedPlayer}')">${col} ▼</th>`).join("");
+        }
+
+        function sortTable(column, selectedPlayer) {
+            if (currentSort.column === column) {
+                currentSort.ascending = !currentSort.ascending;
             } else {
-                data = playerStats[selectedPlayer].games.map(game => ({
-                    date: game.date,
-                    netProfit: game.winnings - game.buyIn
-                }));
+                currentSort.column = column;
+                currentSort.ascending = true;
             }
 
-            const width = 700, height = 400;
-            const svg = d3.select("#chart").append("svg")
-                .attr("width", width)
-                .attr("height", height);
-            
-            const x = d3.scaleBand()
-                .domain(data.map(d => d.date || d.player))
-                .range([40, width - 20])
-                .padding(0.2);
+            updateTable(selectedPlayer);
+        }
 
-            const y = d3.scaleLinear()
-                .domain([d3.min(data, d => d.netProfit) * 1.1, d3.max(data, d => d.netProfit) * 1.1])
-                .nice()
-                .range([height - 50, 20]);
+        function sortAndRenderTable(data, selectedPlayer) {
+            const sortKey = {
+                "Player Name": "player",
+                "Total Buy-In": "buyIn",
+                "Total Winnings": "winnings",
+                "Net Profit": "netProfit",
+                "Percent Return": "percentReturn",
+                "Game Date": "date",
+                "Buy-In": "buyIn",
+                "Winnings": "winnings"
+            }[currentSort.column];
 
-            svg.selectAll("rect")
-                .data(data)
-                .enter()
-                .append("rect")
-                .attr("x", d => x(d.date || d.player))
-                .attr("y", d => y(Math.max(0, d.netProfit)))
-                .attr("width", x.bandwidth())
-                .attr("height", d => Math.abs(y(d.netProfit) - y(0)))
-                .attr("fill", d => d.netProfit >= 0 ? "green" : "red");
+            if (sortKey) {
+                data.sort((a, b) => {
+                    if (typeof a[sortKey] === "string") {
+                        return currentSort.ascending ? a[sortKey].localeCompare(b[sortKey]) : b[sortKey].localeCompare(a[sortKey]);
+                    } else {
+                        return currentSort.ascending ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey];
+                    }
+                });
+            }
 
-            svg.append("g")
-                .attr("transform", `translate(0, ${height - 50})`)
-                .call(d3.axisBottom(x))
-                .selectAll("text")
-                .attr("transform", "rotate(-45)")
-                .style("text-anchor", "end");
-
-            svg.append("g")
-                .attr("transform", "translate(40,0)")
-                .call(d3.axisLeft(y));
+            const tbody = document.querySelector("#statsTable tbody");
+            tbody.innerHTML = data.map(row => `
+                <tr>
+                    <td>${row.player || row.date}</td>
+                    <td>$${row.buyIn.toFixed(2)}</td>
+                    <td>$${row.winnings.toFixed(2)}</td>
+                    <td class="${row.netProfit >= 0 ? 'text-success' : 'text-danger'}">
+                        $${row.netProfit.toFixed(2)}
+                    </td>
+                    <td class="${row.percentReturn >= 0 ? 'text-success' : 'text-danger'}">
+                        ${row.percentReturn.toFixed(2)}%
+                    </td>
+                </tr>
+            `).join("");
         }
     </script>
 </body>
